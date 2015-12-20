@@ -73,7 +73,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <div id="body">
 
-        <h2><a href="<?php echo site_url('rest-server'); ?>">REST Server Tests</a></h2>
+<!--        <h2><a href="--><?php //echo site_url('rest-server'); ?><!--">REST Server Tests</a></h2>-->
 
         <?php if (file_exists(FCPATH.'documentation/index.html')) : ?>
         <h2><a href="<?php echo base_url('documentation/index.html'); ?>" target="_blank">REST Server Documentation</a></h2>

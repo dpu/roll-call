@@ -27,9 +27,10 @@ class QRcode extends CI_Controller{
             $this->load->model('QRcode_Model');
             $get_QRcode_res = $this->QRcode_Model->generate($req_data['client_flag'], $req_data['tea_id'], $req_data['room_id'], $req_data['secret_key']);
         }else{
-            $this->content['status'] = '404';
-            $this->content['message'] = 'Authentication Failed, Can not get QRcode, Please check your request parameter';
-            $this->content['data'] = NULL;
+            $get_QRcode_res['status'] = '10000';
+            $get_QRcode_res['message'] = 'Authentication Failed, Parameter-error';
+            $get_QRcode_res['data'] = NULL;
+            $get_QRcode_res['data'] = $req_data;
         }
 
         echo json_encode($get_QRcode_res);
@@ -45,9 +46,9 @@ class QRcode extends CI_Controller{
             $this->load->model('QRcode_Model');
             $post_QRcode_res = $this->QRcode_Model->resolve($req_data['qr_msg_id'], $req_data['tea_id'], $req_data['room_id'], $req_data['stu_id'], $req_data['client_flag'], $req_data['req_time']);
         }else{
-            $this->content['status'] = '405';
-            $this->content['message'] = 'Authentication Failed, Can not resolve QRcode, Please check your request parameter';
-            $this->content['data'] = NULL;
+            $post_QRcode_res['status'] = '10005';
+            $post_QRcode_res['message'] = 'Authentication Failed, Can not resolve QRcode, Please check your request parameter';
+            $post_QRcode_res['data'] = NULL;
         }
 
         echo json_encode($post_QRcode_res);

@@ -35,22 +35,8 @@ class QRcode_Model extends CI_Model{
      */
     public function generate($client_flag, $tea_id, $room_id, $secret_key)
     {
-        $generate_res = NULL;
-
-        $check_res = $this->generate_check($client_flag, $tea_id, $room_id, $secret_key);
-        if($check_res == TRUE) {
-            $qr_content = 'tea_id=' . $tea_id . '+room_id=' . $room_id . '+time=' . time() ;
-            $qr_msg_id = $this->insert_qr_msg($tea_id, $room_id, base64_encode($qr_content));
-
-            $generate_res['status'] = '200';
-            $generate_res['message'] = 'OK';
-            $generate_res['data'] = array('qr_msg_id'=>$qr_msg_id, 'tea_id'=>$tea_id, 'room_id'=>$room_id);
-        }else{
-            $generate_res['status'] = '404';
-            $generate_res['message'] = 'Authentication Failed, Can not get QRcode, Please check your request parameter';
-            $generate_res['data'] = NULL;
-        }
-
+        $generate_res = $this->generate_check($client_flag, $tea_id, $room_id, $secret_key);
+        $this->db->close();
         return $generate_res;
     }
 
@@ -66,19 +52,8 @@ class QRcode_Model extends CI_Model{
      */
     public function resolve($qr_msg_id, $tea_id, $room_id, $stu_id, $client_flag, $req_time)
     {
-        $resolve_res = NULL;
-        $check_res = $this->resolve_check($qr_msg_id, $tea_id, $room_id, $stu_id, $client_flag, $req_time);
-        if($check_res == TRUE) {
-            $this->insert_rollcall($stu_id, $tea_id, $room_id, $req_time);
-            $resolve_res['status'] = '200';
-            $resolve_res['message'] = 'OK';
-            $resolve_res['data'] = NULL;
-        }else{
-            $resolve_res['status'] = '405';
-            $resolve_res['message'] = 'Authentication Failed, Can not resolve QRcode, Please check your request parameter';
-            $resolve_res['data'] = NULL;
-        }
-
+        $resolve_res = $this->resolve_check($qr_msg_id, $tea_id, $room_id, $stu_id, $client_flag, $req_time);
+        $this->db->close();
         return $resolve_res;
     }
 
@@ -88,20 +63,33 @@ class QRcode_Model extends CI_Model{
      * @param $tea_id
      * @param $room_id
      * @param $secret_key
-     * @return bool             验证请求二维码的参数 TRUE for success, FALSE for failed
+     * @return bool             验证请求二维码的参数
      */
     private function generate_check($client_flag, $tea_id, $room_id, $secret_key)
     {
-        $check_res = FALSE;
-
         $client_msg_sql = "SELECT flag, status FROM client_msg WHERE user_id = ? AND type = ? AND status = ?";
         $client_msg_query = $this->db->query($client_msg_sql, array($tea_id, 'T', '1'));
         $client_msg_res = $client_msg_query->row_array();
 
-        if($client_msg_res['status'] == '1' && $client_msg_res['flag'] == $client_flag && md5(md5($client_msg_res['flag'])) == $secret_key ) {
-            // check success
-            $check_res = TRUE;
+        if($client_msg_res['flag'] != $client_flag) {
+            $check_res['status'] = '10011';
+            $check_res['message'] = 'Can not get QRcode, Wrong client_flag';
+            $check_res['data'] = NULL;
+            return $check_res;
         }
+        if(md5(md5($client_msg_res['flag'])) != $secret_key) {
+            $check_res['status'] = '10012';
+            $check_res['message'] = 'Can not get QRcode, Wrong secret_key';
+            $check_res['data'] = NULL;
+            return $check_res;
+        }
+
+        $qr_content = 'tea_id=' . $tea_id . '+room_id=' . $room_id . '+time=' . time() ;
+        $qr_msg_id = $this->insert_qr_msg($tea_id, $room_id, base64_encode($qr_content));
+
+        $check_res['status'] = '200';
+        $check_res['message'] = 'OK';
+        $check_res['data'] = array('qr_msg_id'=>$qr_msg_id, 'tea_id'=>$tea_id, 'room_id'=>$room_id);
 
         return $check_res;
     }
@@ -114,12 +102,10 @@ class QRcode_Model extends CI_Model{
      * @param $stu_id           学生学号
      * @param $client_flag      学生客户端标识
      * @param $req_time         请求时间
-     * @return bool             验证结果 TRUE for success, FALSE for failed
+     * @return mixd             验证结果
      */
     private function resolve_check($qr_msg_id, $tea_id, $room_id, $stu_id, $client_flag, $req_time)
     {
-        $check_res = FALSE;
-
         $qr_msg_sql = "SELECT tea_id, room_id, setup_time FROM qr_msg WHERE id = ? AND active = '1'";
         $qr_msg_query = $this->db->query($qr_msg_sql, array($qr_msg_id));
         $qr_msg_res = $qr_msg_query->row_array();
@@ -128,11 +114,35 @@ class QRcode_Model extends CI_Model{
         $client_msg_query = $this->db->query($client_msg_sql, array($stu_id));
         $client_msg_res = $client_msg_query->row_array();
 
-        if($qr_msg_res['tea_id'] == $tea_id && $qr_msg_res['room_id'] == $room_id && (strtotime($req_time)-strtotime($qr_msg_res['setup_time'])) <= 60*5 && $client_msg_res['flag'] == $client_flag){
-            // check success
-            $check_res = TRUE;
+        if($qr_msg_res['tea_id'] != $tea_id) {
+            $check_res['status'] = '10006';
+            $check_res['message'] = 'Error teachers';
+            $check_res['data'] = NULL;
+            return $check_res;
+        }
+        if($qr_msg_res['room_id'] != $room_id) {
+            $check_res['status'] = '10007';
+            $check_res['message'] = 'Error room';
+            $check_res['data'] = NULL;
+            return $check_res;
+        }
+        if((strtotime($req_time)-strtotime($qr_msg_res['setup_time'])) >= 60*5) {
+            $check_res['status'] = '10008';
+            $check_res['message'] = 'This QRcode was invalid';
+            $check_res['data'] = NULL;
+            return $check_res;
+        }
+        if($client_msg_res['flag'] != $client_flag) {
+            $check_res['status'] = '10009';
+            $check_res['message'] = 'Error client_flag';
+            $check_res['data'] = NULL;
+            return $check_res;
         }
 
+        $check_res['status'] = '200';
+        $check_res['message'] = 'OK';
+        $check_res['data'] = NULL;
+        $this->insert_rollcall($stu_id, $tea_id, $room_id, $req_time);
         return $check_res;
     }
     
